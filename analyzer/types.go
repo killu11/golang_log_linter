@@ -1,21 +1,23 @@
 package analyzer
 
 import (
-	"bufio"
-	"io"
 	"log"
 	"os"
 	"slices"
 	"strings"
+	"sync"
 )
 
 const banWordsPath = "../banwords.txt"
-const bwTemplate = `apikey, env, password, authtoken, creds, credentials`
+const bwTemplate = "apikey,env,password,authtoken,creds,credentials"
 
 var Cmd = []string{"Info", "Debug", "Warn", "Error"}
 var ContextCmd = []string{"InfoContext", "DebugContext", "WarnContext", "ErrorContext"}
 
-var banWords []string
+var (
+	banWords []string
+	loadOnce sync.Once
+)
 
 type PkgType string
 
@@ -40,28 +42,41 @@ func containsSubCmd(command string) bool {
 	}
 	return false
 }
-func init() {
+
+func loadBanWords() {
 	if _, err := os.Stat(banWordsPath); err != nil {
-		f, err := os.Create(banWordsPath)
+		f, err := os.OpenFile(banWordsPath, os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
-			log.Fatalln("Create banwords.txt:", err)
+			log.Println("create banwords.txt:", err)
+			return
 		}
 
-		if _, err := f.Write([]byte(bwTemplate)); err != nil {
-			log.Fatalln("Write banwords template:", err)
+		defer f.Close()
+
+		if _, err := f.WriteString(bwTemplate); err != nil {
+			log.Println("write banwords template:", err)
+			return
 		}
+	}
+
+	data, err := os.ReadFile(banWordsPath)
+	if err != nil {
+		log.Fatalln("read banwords.txt:", err)
+	}
+
+	content := strings.TrimSpace(string(data))
+	if content == "" {
+		banWords = []string{}
 		return
 	}
 
-	f, err := os.Open(banWordsPath)
-	if err != nil {
-		log.Fatalln("Open banwords.txt:", err)
-	}
-	rd := bufio.NewReader(f)
-	s, err := rd.ReadString('\n')
+	banWords = strings.Split(content, ",")
 
-	if err != io.EOF {
-		log.Fatalln(err)
+	for i, word := range banWords {
+		banWords[i] = strings.TrimSpace(word)
 	}
-	banWords = strings.Split(s, ",")
+
+}
+func init() {
+
 }

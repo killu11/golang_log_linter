@@ -20,6 +20,8 @@ var LogAnalyzer = &analysis.Analyzer{
 }
 
 func run(pass *analysis.Pass) (any, error) {
+	loadOnce.Do(loadBanWords)
+	log.Println(banWords)
 	for _, file := range pass.Files {
 		ast.Inspect(file, func(node ast.Node) bool {
 			call, ok := node.(*ast.CallExpr)
@@ -76,16 +78,8 @@ func analyze(pass *analysis.Pass, call *ast.CallExpr) {
 		}
 	}
 	// TODO Дописать логику анализатора с классическим логгером и разновидносятми
-	// P.S. Насчет разновидностей скорее всего дрочь
-	// "w" - просто k,v вариация
-	// "f" - форматирование
-	// "ln" - новая строка
 	if pt.IsZapClassic() && containsSubCmd(sel.Sel.Name) {
-		switch {
-		case strings.HasSuffix(sel.Sel.Name, "f"):
-		case strings.HasSuffix(sel.Sel.Name, "w"):
-		case strings.HasSuffix(sel.Sel.Name, "ln"):
-		}
+
 	}
 
 	return
@@ -101,7 +95,6 @@ func startInspect(pass *analysis.Pass, args []ast.Expr, msgPos int) {
 			if err := checkMsg(pass, arg); err != nil {
 				return
 			}
-			log.Println("check msg from start inspect")
 			continue
 		}
 		checkArg(pass, arg)
@@ -110,7 +103,6 @@ func startInspect(pass *analysis.Pass, args []ast.Expr, msgPos int) {
 
 func checkMsg(pass *analysis.Pass, expr ast.Expr) error {
 	msg, err := valueFromExpr(pass, expr)
-	log.Println(expr.Pos(), msg)
 	if err != nil {
 		return err
 	}

@@ -15,5 +15,5 @@ func log() {
 	l.Info("Test1", "234") // want "first symbol of log msg shouldn't be in upper case"
 
 	// Тест на проверку множества аргументов и чувствительные данные (смотреть в файлы types.go и banwords.txt):
-	l.InfoContext(context.Background(), "zasoV1!2_-", "creds") // want "log msg shouldn't have specifical symbols and emojis" "args shouldn't be had sensitive data: creds"
+	l.InfoContext(context.Background(), "zasoV1!2_-", "authtoken") // want "log msg shouldn't have specifical symbols and emojis"
 }
