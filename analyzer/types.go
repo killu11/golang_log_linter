@@ -1,15 +1,11 @@
 package analyzer
 
 import (
-	"log"
-	"os"
 	"slices"
 	"strings"
 )
 
-const bwTemplate = "apikey,env,password,authtoken,creds,credentials"
-
-var Cmd = []string{"Info", "Debug", "Warn", "Error"}
+var Cmd = []string{"Info", "Debug", "Warn", "Error", "Fatal", "Panic"}
 var ContextCmd = []string{"InfoContext", "DebugContext", "WarnContext", "ErrorContext"}
 
 var banWords []string
@@ -39,43 +35,13 @@ func containsSubCmd(command string) bool {
 }
 
 func loadBanWords() {
-	if bwPath == "" {
-		log.Fatalln("use path flag to set path to banwords.txt")
+	// Здесь должна была быть подгрузка бан вордов из дока, но увы, в комбинации с custom golangci-lint
+	// Нет прямой возможности указывать флаги (в моей реализации через флаг передавался бы путь к бан вордам)
+	// Еще был вариант с конфигурационным файлом, но просто не хватило времени разобраться :)
+	const bwTemplate = "apikey,env,password,authtoken,creds,credentials"
+
+	bw := strings.Split(bwTemplate, ",")
+	for _, word := range bw {
+		banWords = append(banWords, strings.TrimSpace(word))
 	}
-
-	if _, err := os.Stat(bwPath); err != nil {
-		f, err := os.OpenFile(bwPath, os.O_CREATE|os.O_WRONLY, 0644)
-		if err != nil {
-			log.Println("create banwords:", err)
-			return
-		}
-
-		defer f.Close()
-
-		if _, err := f.WriteString(bwTemplate); err != nil {
-			log.Println("write banwords template:", err)
-			return
-		}
-	}
-
-	data, err := os.ReadFile(bwPath)
-	if err != nil {
-		log.Fatalln("read banwords.txt:", err)
-	}
-
-	content := strings.TrimSpace(string(data))
-	if content == "" {
-		banWords = []string{}
-		return
-	}
-
-	banWords = strings.Split(content, ",")
-
-	for i, word := range banWords {
-		banWords[i] = strings.TrimSpace(word)
-	}
-
-}
-func init() {
-
 }

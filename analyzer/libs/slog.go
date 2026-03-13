@@ -1,4 +1,4 @@
-package analyzer
+package libs
 
 import (
 	"go/ast"
@@ -7,7 +7,7 @@ import (
 	"golang.org/x/tools/go/analysis"
 )
 
-func isSlogPkgSelector(pass *analysis.Pass, ident *ast.Ident) bool {
+func IsSlogPkgSelector(pass *analysis.Pass, ident *ast.Ident) bool {
 	obj := pass.TypesInfo.ObjectOf(ident)
 	if obj == nil {
 		return false
@@ -20,7 +20,7 @@ func isSlogPkgSelector(pass *analysis.Pass, ident *ast.Ident) bool {
 	return false
 }
 
-func isSlogLoggerSelector(pass *analysis.Pass, ident *ast.Ident) bool {
+func IsSlogLoggerSelector(pass *analysis.Pass, ident *ast.Ident) bool {
 	t := pass.TypesInfo.TypeOf(ident)
 	if t == nil {
 		return false

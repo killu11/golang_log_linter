@@ -1,4 +1,4 @@
-package analyzer
+package libs
 
 import (
 	"go/ast"
@@ -7,7 +7,7 @@ import (
 	"golang.org/x/tools/go/analysis"
 )
 
-func isSugar(pass *analysis.Pass, ident *ast.Ident) bool {
+func IsSugar(pass *analysis.Pass, ident *ast.Ident) bool {
 	t := pass.TypesInfo.TypeOf(ident)
 
 	if t == nil {
@@ -19,7 +19,7 @@ func isSugar(pass *analysis.Pass, ident *ast.Ident) bool {
 	return false
 }
 
-func isClassic(pass *analysis.Pass, ident *ast.Ident) bool {
+func IsClassic(pass *analysis.Pass, ident *ast.Ident) bool {
 	t := pass.TypesInfo.TypeOf(ident)
 
 	if t == nil {

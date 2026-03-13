@@ -5,12 +5,13 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
-	"linter/pkg"
 	"log"
 	"slices"
 	"strconv"
 	"strings"
 
+	"github.com/killu11/golang_log_linter/analyzer/libs"
+	"github.com/killu11/golang_log_linter/pkg"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -49,11 +50,12 @@ func init() {
 }
 func analyze(pass *analysis.Pass, call *ast.CallExpr) {
 	sel, ok := call.Fun.(*ast.SelectorExpr)
-	if !ok {
+	if !ok || sel == nil {
 		return
 	}
 
 	id, ok := sel.X.(*ast.Ident)
+
 	if !ok {
 		return
 	}
@@ -221,15 +223,15 @@ func checkField(pass *analysis.Pass, expr ast.Expr) {
 }
 
 func valid(pass *analysis.Pass, ident *ast.Ident) (PkgType, bool) {
-	if isSlogPkgSelector(pass, ident) || isSlogLoggerSelector(pass, ident) {
+	if libs.IsSlogPkgSelector(pass, ident) || libs.IsSlogLoggerSelector(pass, ident) {
 		return "log/slog", true
 	}
 
-	if isClassic(pass, ident) {
+	if libs.IsClassic(pass, ident) {
 		return "zap/classic", true
 	}
 
-	if isSugar(pass, ident) {
+	if libs.IsSugar(pass, ident) {
 		return "zap/sugar", true
 	}
 

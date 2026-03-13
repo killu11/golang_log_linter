@@ -1,0 +1,5 @@
+version: v2.0.0
+plugins:
+  - module: 'github.com/killu11/golang_log_linter'
+    import: 'github.com/killu11/golang_log_linter'
+    path: .
