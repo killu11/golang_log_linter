@@ -5,19 +5,14 @@ import (
 	"os"
 	"slices"
 	"strings"
-	"sync"
 )
 
-const banWordsPath = "../banwords.txt"
 const bwTemplate = "apikey,env,password,authtoken,creds,credentials"
 
 var Cmd = []string{"Info", "Debug", "Warn", "Error"}
 var ContextCmd = []string{"InfoContext", "DebugContext", "WarnContext", "ErrorContext"}
 
-var (
-	banWords []string
-	loadOnce sync.Once
-)
+var banWords []string
 
 type PkgType string
 
@@ -44,10 +39,14 @@ func containsSubCmd(command string) bool {
 }
 
 func loadBanWords() {
-	if _, err := os.Stat(banWordsPath); err != nil {
-		f, err := os.OpenFile(banWordsPath, os.O_CREATE|os.O_WRONLY, 0644)
+	if bwPath == "" {
+		log.Fatalln("use path flag to set path to banwords.txt")
+	}
+
+	if _, err := os.Stat(bwPath); err != nil {
+		f, err := os.OpenFile(bwPath, os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
-			log.Println("create banwords.txt:", err)
+			log.Println("create banwords:", err)
 			return
 		}
 
@@ -59,7 +58,7 @@ func loadBanWords() {
 		}
 	}
 
-	data, err := os.ReadFile(banWordsPath)
+	data, err := os.ReadFile(bwPath)
 	if err != nil {
 		log.Fatalln("read banwords.txt:", err)
 	}

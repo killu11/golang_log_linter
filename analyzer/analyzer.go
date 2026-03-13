@@ -1,6 +1,7 @@
 package analyzer
 
 import (
+	"flag"
 	"fmt"
 	"go/ast"
 	"go/token"
@@ -13,15 +14,22 @@ import (
 	"golang.org/x/tools/go/analysis"
 )
 
+var bwPath string
+
 var LogAnalyzer = &analysis.Analyzer{
-	Name: "invalid_log",
+	Name: "log_checker",
 	Doc:  "log messages should be start with lower case",
 	Run:  run,
+	Flags: func() flag.FlagSet {
+		fs := flag.NewFlagSet("fs", flag.ExitOnError)
+		fs.StringVar(&bwPath, "path", "", "usage to set banwords.txt file")
+		return *fs
+	}(),
 }
 
 func run(pass *analysis.Pass) (any, error) {
-	loadOnce.Do(loadBanWords)
-	log.Println(banWords)
+	loadBanWords()
+
 	for _, file := range pass.Files {
 		ast.Inspect(file, func(node ast.Node) bool {
 			call, ok := node.(*ast.CallExpr)
@@ -36,7 +44,9 @@ func run(pass *analysis.Pass) (any, error) {
 	}
 	return nil, nil
 }
-
+func init() {
+	LogAnalyzer.Flags.String("p", "", "set path to banword file, use `.txt` format")
+}
 func analyze(pass *analysis.Pass, call *ast.CallExpr) {
 	sel, ok := call.Fun.(*ast.SelectorExpr)
 	if !ok {
@@ -60,9 +70,9 @@ func analyze(pass *analysis.Pass, call *ast.CallExpr) {
 	if pt.IsSlog() {
 		switch {
 		case slices.Contains(Cmd, sel.Sel.Name):
-			startInspect(pass, call.Args, 0)
+			startInspect(pass, call.Args, 0, false)
 		case slices.Contains(ContextCmd, sel.Sel.Name):
-			startInspect(pass, call.Args, 1)
+			startInspect(pass, call.Args, 1, false)
 		default:
 			return
 		}
@@ -71,28 +81,38 @@ func analyze(pass *analysis.Pass, call *ast.CallExpr) {
 	if pt.IsZapSugar() && containsSubCmd(sel.Sel.Name) {
 		switch {
 		case strings.HasSuffix(sel.Sel.Name, "f"):
-		case strings.HasSuffix(sel.Sel.Name, "w"):
-		case strings.HasSuffix(sel.Sel.Name, "ln"):
+			startInspect(pass, call.Args, 0, true)
 		default:
-			startInspect(pass, call.Args, 0)
+			startInspect(pass, call.Args, 0, false)
 		}
 	}
-	// TODO Дописать логику анализатора с классическим логгером и разновидносятми
-	if pt.IsZapClassic() && containsSubCmd(sel.Sel.Name) {
 
+	if pt.IsZapClassic() && containsSubCmd(sel.Sel.Name) {
+		for i, arg := range call.Args {
+			if i == 0 {
+				if err := checkMsg(pass, arg, false); err != nil {
+					return
+				}
+				continue
+			}
+
+			checkField(pass, arg)
+		}
 	}
 
 	return
 }
 
-func startInspect(pass *analysis.Pass, args []ast.Expr, msgPos int) {
+// startInspect - анализирует аргументы внутри функции, проверяя ее на правила
+// fsStatus - статус форматированной строки, он необходим, чтобы проверка на спецсимволы не выдавала репорт
+func startInspect(pass *analysis.Pass, args []ast.Expr, msgPos int, fsStatus bool) {
 	for i, arg := range args {
 		if msgPos > i {
 			continue
 		}
 
 		if i == msgPos {
-			if err := checkMsg(pass, arg); err != nil {
+			if err := checkMsg(pass, arg, fsStatus); err != nil {
 				return
 			}
 			continue
@@ -101,7 +121,7 @@ func startInspect(pass *analysis.Pass, args []ast.Expr, msgPos int) {
 	}
 }
 
-func checkMsg(pass *analysis.Pass, expr ast.Expr) error {
+func checkMsg(pass *analysis.Pass, expr ast.Expr, fsStatus bool) error {
 	msg, err := valueFromExpr(pass, expr)
 	if err != nil {
 		return err
@@ -119,14 +139,14 @@ func checkMsg(pass *analysis.Pass, expr ast.Expr) error {
 		pass.Reportf(expr.Pos(), "%v", err)
 	}
 
-	if err = pkg.SpecSymbols(msg); err != nil {
+	if err = pkg.SpecSymbols(msg, fsStatus); err != nil {
 		pass.Reportf(expr.Pos(), "%v", err)
 	}
 
 	return nil
 }
 
-// checkArg проверяет аргументы для slog.Logger
+// checkArg проверяет аргументы для slog.Logger и zap.SugarLogger
 func checkArg(pass *analysis.Pass, expr ast.Expr) {
 	val, err := valueFromExpr(pass, expr)
 	if err != nil {
@@ -141,15 +161,64 @@ func checkArg(pass *analysis.Pass, expr ast.Expr) {
 	if err = pkg.OnlyLatinAndNumSymbols(val); err != nil {
 		pass.Reportf(expr.Pos(), "%v", err)
 	}
-	if err = pkg.SpecSymbols(val); err != nil {
+	if err = pkg.SpecSymbols(val, false); err != nil {
 		pass.Reportf(expr.Pos(), "%v", err)
 	}
 }
 
-// checkField проверяет ключи-значения для zap.SugarLogger
-//func checkField(pass *analysis.Pass, exp ast.Expr) error {
-//
-//}
+// checkField проверяет ключи-значения для zap.Logger
+func checkField(pass *analysis.Pass, expr ast.Expr) {
+	var val string
+	call, ok := expr.(*ast.CallExpr)
+
+	if !ok {
+		id, ok := expr.(*ast.Ident)
+		if !ok {
+			log.Println("unknown expr parse field")
+			return
+		}
+
+		obj := pass.TypesInfo.ObjectOf(id)
+		if obj == nil {
+			log.Println("nil obj")
+			return
+		}
+
+		val = obj.Name()
+		if isSensitive(val) {
+			pass.Reportf(expr.Pos(), "args shouldn't be had sensitive data: %v", val)
+		}
+		return
+	}
+
+	tv := pass.TypesInfo.Types[call]
+	if tv.Type == nil {
+		return
+	}
+
+	if tv.Type.String() != "go.uber.org/zap.Field" {
+		return
+	}
+	for _, arg := range call.Args {
+		val, err := valueFromExpr(pass, arg)
+		if err != nil {
+			return
+		}
+
+		if isSensitive(val) {
+			pass.Reportf(expr.Pos(), "args shouldn't be had sensitive data: %v", val)
+			return
+		}
+
+		if err = pkg.OnlyLatinAndNumSymbols(val); err != nil {
+			pass.Reportf(expr.Pos(), "%v", err)
+		}
+		if err = pkg.SpecSymbols(val, false); err != nil {
+			pass.Reportf(expr.Pos(), "%v", err)
+		}
+	}
+
+}
 
 func valid(pass *analysis.Pass, ident *ast.Ident) (PkgType, bool) {
 	if isSlogPkgSelector(pass, ident) || isSlogLoggerSelector(pass, ident) {
@@ -209,6 +278,7 @@ func valueFromExpr(pass *analysis.Pass, expr ast.Expr) (string, error) {
 		if err != nil {
 			return "", err
 		}
+
 		return left + right, nil
 
 	default:

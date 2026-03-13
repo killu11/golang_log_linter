@@ -1,8 +1,5 @@
 package zap
 
-// Field используется в классическом API
-type Field struct{}
-
 // Классический логгер
 type Logger struct{}
 
@@ -48,6 +45,14 @@ func (s *SugaredLogger) DPanicf(template string, args ...any) {}
 func (s *SugaredLogger) Panicf(template string, args ...any)  {}
 func (s *SugaredLogger) Fatalf(template string, args ...any)  {}
 
-func L() *Logger { return &Logger{} }
+// printf-style sugar
+func (s *SugaredLogger) Debugln(template string, args ...any)  {}
+func (s *SugaredLogger) Infoln(template string, args ...any)   {}
+func (s *SugaredLogger) Warnln(template string, args ...any)   {}
+func (s *SugaredLogger) Errorln(template string, args ...any)  {}
+func (s *SugaredLogger) DPanicln(template string, args ...any) {}
+func (s *SugaredLogger) Panicln(template string, args ...any)  {}
+func (s *SugaredLogger) Fatalln(template string, args ...any)  {}
+func L() *Logger                                               { return &Logger{} }
 
 func S() *SugaredLogger { return &SugaredLogger{} }

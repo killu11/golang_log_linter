@@ -40,8 +40,14 @@ func OnlyLatinAndNumSymbols(arg string) error {
 	return nil
 }
 
-func SpecSymbols(arg string) error {
+func SpecSymbols(arg string, fsStatus bool) error {
 	for _, r := range arg {
+		if fsStatus && r == '%' {
+			continue
+		}
+		if r == ':' {
+			continue
+		}
 		if unicode.In(r, unicode.Symbol, unicode.Sc, unicode.Sm, unicode.So) ||
 			unicode.In(r, unicode.Punct, unicode.Pc, unicode.Pd, unicode.Po) {
 			return fmt.Errorf("log msg shouldn't have specifical symbols and emojis")
